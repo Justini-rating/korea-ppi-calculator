@@ -74,7 +74,7 @@ try:
             with col2:
                 st.metric("최신 지수", f"{current_value}", f"{latest_date}")
             with col3:
-                st.metric("상승률", f"{ratio:.4f} 배", f"{percent_change:+.2f}%")
+                st.metric("상승률", f"{percent_change:+.2f}%")
             
             st.divider() # 구분선
 
@@ -98,6 +98,7 @@ try:
 
 except Exception as e:
     st.error(f"오류가 발생했습니다: {e}")
+
 
 
 

@@ -70,17 +70,19 @@ try:
             
             col1, col2, col3 = st.columns(3)
             
-            # [수정됨] 날짜를 제목(label)에 포함시키고, delta(3번째 인자)를 삭제하여 화살표 제거
+            # 첫 번째 컬럼: 과거 지수
             with col1:
-                st.metric(f"과거 지수 ({selected_past_date})", f"{past_value}")
-                st.caption("(2020=100)")
+                st.metric("과거 지수", f"{past_value}")
+                # [수정됨] 지수 값 바로 밑에 날짜 표시 (화살표 없음)
+                st.caption(f"({selected_past_date})")
             
-            # [수정됨] 날짜를 제목(label)에 포함시키고, delta(3번째 인자)를 삭제하여 화살표 제거
+            # 두 번째 컬럼: 최신 지수
             with col2:
-                st.metric(f"최신 지수 ({latest_date})", f"{current_value}")
-                st.caption("(2020=100)")
+                st.metric("최신 지수", f"{current_value}")
+                # [수정됨] 지수 값 바로 밑에 날짜 표시
+                st.caption(f"({latest_date})")
                 
-            # 세 번째 컬럼: 상승률 (밝은 연두색 커스텀 디자인 유지)
+            # 세 번째 컬럼: 상승률 (밝은 연두색 유지)
             with col3:
                 # 색상 결정
                 if percent_change >= 0:

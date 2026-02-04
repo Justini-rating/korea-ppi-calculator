@@ -2,7 +2,7 @@ name: Monthly Data Update
 
 on:
   schedule:
-    # 매월 5일 오전 9시 (한국시간)에 실행 (UTC 0시 = KST 9시)
+    # 매월 23일 오전 9시 (한국시간)에 실행 (UTC 0시 = KST 9시)
     # KOSIS 데이터 발표일에 맞춰 날짜 수정 가능
     - cron: '0 0 23 * *'
   workflow_dispatch: # 수동 실행 버튼 추가 (테스트용)

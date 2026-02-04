@@ -1,0 +1,42 @@
+name: Monthly Data Update
+
+on:
+  schedule:
+    # 매월 5일 오전 9시 (한국시간)에 실행 (UTC 0시 = KST 9시)
+    # KOSIS 데이터 발표일에 맞춰 날짜 수정 가능
+    - cron: '0 0 23 * *'
+  workflow_dispatch: # 수동 실행 버튼 추가 (테스트용)
+
+permissions:
+  contents: write
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v3
+
+      - name: 파이썬 설정
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: 라이브러리 설치
+        run: |
+          pip install pandas requests
+
+      - name: 데이터 업데이트 스크립트 실행
+        env:
+          KOSIS_API_KEY: ${{ secrets.KOSIS_API_KEY }}
+        run: |
+          python update_data.py
+
+      - name: 변경사항 저장 및 배포
+        run: |
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "actions@github.com"
+          git add data.csv
+          
+          # 변경사항이 있을 때만 커밋
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update data.csv (Auto)" && git push)

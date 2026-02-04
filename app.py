@@ -71,12 +71,29 @@ try:
             col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric("과거 지수", f"{past_value}", f"{selected_past_date}")
+                st.caption("(2020=100)")  # 👈 작은 글씨 추가    
             with col2:
                 st.metric("최신 지수", f"{current_value}", f"{latest_date}")
-            with col3:
-                # value를 빈 칸("")으로 두면 배수는 사라지고, delta(퍼센트)만 색깔과 함께 나옵니다.
-                # Streamlit 기본 설정상 +는 초록색, -는 빨간색으로 자동 표시됩니다.
-                st.metric(label="상승률", value="", delta=f"{percent_change:+.2f}%")
+                st.caption("(2020=100)")  # 👈 작은 글씨 추가
+           with col3:
+                # 1. 색상 정하기 (양수는 초록, 음수는 빨강)
+                if percent_change >= 0:
+                    color_code = "#09AB3B"  # 초록색
+                else:
+                    color_code = "#FF4B4B"  # 빨간색
+                
+                # 2. HTML로 직접 그리기 (st.metric 흉내내기)
+                # 라벨(제목)
+                st.markdown('<p style="font-size: 14px; margin-bottom: -5px; color: #555;">상승률</p>', unsafe_allow_html=True)
+                
+                # 값 (크게 + 색상 적용)
+                st.markdown(f"""
+                <p style="font-size: 32px; font-weight: 700; color: {color_code}; margin: 0;">
+                    {percent_change:+.2f}%
+                </p>
+                """, unsafe_allow_html=True)
+                
+                # (2020=100) 캡션은 요청하신 대로 삭제했습니다.
             
             st.divider() # 구분선
 
@@ -100,6 +117,7 @@ try:
 
 except Exception as e:
     st.error(f"오류가 발생했습니다: {e}")
+
 
 
 

@@ -10,7 +10,6 @@ st.set_page_config(
     layout="centered"
 )
 
-# [수정됨] 요청하신 제목으로 변경했습니다.
 st.title("📈 국내생산자 물가지수 (품목별)")
 st.markdown("매월 업데이트되는 KOSIS 데이터를 기반으로 **상승률 계산** 및 **추세 그래프**를 제공합니다.")
 
@@ -81,22 +80,22 @@ try:
                 st.metric("최신 지수", f"{current_value}", f"{latest_date}")
                 st.caption("(2020=100)")
                 
-            # 세 번째 컬럼: 상승률 (큰 글씨 + 색상 적용)
+            # 세 번째 컬럼: 상승률 (색상 및 두께 변경)
             with col3:
-                # 색상 결정 (양수: 초록, 음수: 빨강)
+                # 색상 결정 (양수: 밝은 연두색, 음수: 빨강)
                 if percent_change >= 0:
-                    color_code = "#09AB3B"  # 초록색
+                    color_code = "#2ECC71"  # 🟢 밝은 에메랄드/연두색
                 else:
-                    color_code = "#FF4B4B"  # 빨간색
+                    color_code = "#FF4B4B"  # 🔴 빨간색
                 
-                # HTML을 이용해 큰 글씨로 출력
+                # HTML을 이용해 커스텀 디자인 적용
                 st.markdown('<p style="font-size: 14px; margin-bottom: -5px; color: #555;">상승률</p>', unsafe_allow_html=True)
+                # font-weight: 700 -> 600 (두께 줄임)
                 st.markdown(f"""
-                <p style="font-size: 32px; font-weight: 700; color: {color_code}; margin: 0;">
+                <p style="font-size: 32px; font-weight: 600; color: {color_code}; margin: 0;">
                     {percent_change:+.2f}%
                 </p>
                 """, unsafe_allow_html=True)
-                # (2020=100) 캡션 삭제됨
             
             st.divider() # 구분선
 
@@ -112,9 +111,11 @@ try:
             # 선 그래프
             st.line_chart(chart_data, color="#FF4B4B")
 
-            # 상세 데이터 (접기/펴기)
+            # 상세 데이터 (접기/펴기) - 최신순 정렬 적용
             with st.expander("📄 전체 데이터 표로 보기"):
-                st.dataframe(df.loc[selected_item].T)
+                # .T (행열전환) 후 .sort_index(ascending=False)로 내림차순 정렬
+                display_df = df.loc[selected_item].to_frame(name="지수")
+                st.dataframe(display_df.sort_index(ascending=False))
 
 except Exception as e:
     st.error(f"오류가 발생했습니다: {e}")

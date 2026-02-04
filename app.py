@@ -74,7 +74,9 @@ try:
             with col2:
                 st.metric("최신 지수", f"{current_value}", f"{latest_date}")
             with col3:
-                st.metric("상승률", f"{percent_change:+.2f}%")
+                # value를 빈 칸("")으로 두면 배수는 사라지고, delta(퍼센트)만 색깔과 함께 나옵니다.
+                # Streamlit 기본 설정상 +는 초록색, -는 빨간색으로 자동 표시됩니다.
+                st.metric(label="상승률", value="", delta=f"{percent_change:+.2f}%")
             
             st.divider() # 구분선
 
@@ -98,6 +100,7 @@ try:
 
 except Exception as e:
     st.error(f"오류가 발생했습니다: {e}")
+
 
 
 

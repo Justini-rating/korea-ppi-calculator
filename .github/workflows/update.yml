@@ -2,41 +2,53 @@ name: Monthly Data Update
 
 on:
   schedule:
-    # 매월 23일 오전 9시 (한국시간)에 실행 (UTC 0시 = KST 9시)
-    # KOSIS 데이터 발표일에 맞춰 날짜 수정 가능
+    # -----------------------------------------------------------
+    # [시간 설정] UTC 기준 (한국 시간 - 9시간)
+    # 0 0 23 * * => UTC 0시 0분 = 한국 시간 오전 9시
+    # 매월 23일 오전 9시에 자동 실행됩니다.
+    # -----------------------------------------------------------
     - cron: '0 0 23 * *'
-  workflow_dispatch: # 수동 실행 버튼 추가 (테스트용)
-
-permissions:
-  contents: write
+  
+  # 수동으로 실행 버튼(Run workflow)을 누를 수 있게 해주는 설정
+  workflow_dispatch:
 
 jobs:
   update-data:
     runs-on: ubuntu-latest
+    
+    # -----------------------------------------------------------
+    # [권한 설정] 봇이 코드를 수정해서 올릴(Push) 수 있게 허용
+    # -----------------------------------------------------------
+    permissions:
+      contents: write
+
     steps:
-      - name: 저장소 체크아웃
+      - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: 파이썬 설정
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
 
-      - name: 라이브러리 설치
+      # -----------------------------------------------------------
+      # [중요] 필요한 도구 설치
+      # dateutil이 새로 추가되었으므로 꼭 포함해야 합니다!
+      # -----------------------------------------------------------
+      - name: Install dependencies
         run: |
-          pip install pandas requests
+          pip install pandas requests openpyxl python-dateutil
 
-      - name: 데이터 업데이트 스크립트 실행
+      - name: Run update script
         env:
           KOSIS_API_KEY: ${{ secrets.KOSIS_API_KEY }}
-        run: |
-          python update_data.py
+        run: python update_data.py
 
-      - name: 변경사항 저장 및 배포
+      - name: Commit and push if changes
         run: |
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "actions@github.com"
           git add data.csv
-          
-          # 변경사항이 있을 때만 커밋
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Update data.csv (Auto)" && git push)
+          # 변경사항이 있을 때만 커밋 (에러 방지)
+          git commit -m "Auto-update data: $(date +'%Y-%m-%d')" || exit 0
+          git push

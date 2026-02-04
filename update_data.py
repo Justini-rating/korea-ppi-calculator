@@ -19,12 +19,12 @@ end_date = datetime.datetime.now().strftime("%Y%m")
 # --------------------------------------------------------------------------
 # 3. KOSIS API 호출
 # --------------------------------------------------------------------------
-# [핵심] 오류 원인인 objL2, objL3 제거하고 objL1(품목)만 남김
+# [핵심] 오류 원인인 objL2, objL3가 '없는' URL입니다.
 url = (
     f"https://kosis.kr/openapi/Param/statisticsParameterData.do"
     f"?method=getList&apiKey={API_KEY}"
     f"&itmId=T1"           # 데이터 종류 (지수)
-    f"&objL1=ALL"          # 모든 품목 가져오기
+    f"&objL1=ALL"          # 품목 (이거 하나만 있어야 함!)
     f"&format=json&jsonVD=Y&prdSe=M&startPrdDe={start_date}&endPrdDe={end_date}"
     f"&orgId={ORG_ID}&tblId={TBL_ID}"
 )
@@ -43,6 +43,8 @@ try:
     # 에러 체크
     if "err" in data:
         print(f"❌ API 오류 발생: {data}")
+        # 오류가 나면 URL 구조 확인을 위해 출력 (보안상 키는 숨김)
+        print(f"요청한 URL: {url.replace(API_KEY, '***')}")
         exit(1)
         
     # --------------------------------------------------------------------------
@@ -54,7 +56,6 @@ try:
     # 컬럼 정리 (품목명 찾기)
     item_col = 'C1_NM'
     if item_col not in df_raw.columns:
-        # 만약 C1_NM이 없으면 C2, C3 등을 찾음
         for col in ['C2_NM', 'C3_NM', 'ITM_NM']:
             if col in df_raw.columns:
                 item_col = col

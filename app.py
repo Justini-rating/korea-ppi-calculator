@@ -70,17 +70,17 @@ try:
             
             col1, col2, col3 = st.columns(3)
             
-            # 첫 번째 컬럼: 과거 지수
+            # [수정됨] 날짜를 제목(label)에 포함시키고, delta(3번째 인자)를 삭제하여 화살표 제거
             with col1:
-                st.metric("과거 지수", f"{past_value}", f"{selected_past_date}")
+                st.metric(f"과거 지수 ({selected_past_date})", f"{past_value}")
                 st.caption("(2020=100)")
             
-            # 두 번째 컬럼: 최신 지수
+            # [수정됨] 날짜를 제목(label)에 포함시키고, delta(3번째 인자)를 삭제하여 화살표 제거
             with col2:
-                st.metric("최신 지수", f"{current_value}", f"{latest_date}")
+                st.metric(f"최신 지수 ({latest_date})", f"{current_value}")
                 st.caption("(2020=100)")
                 
-            # 세 번째 컬럼: 상승률 (밝은 연두색 디자인 적용)
+            # 세 번째 컬럼: 상승률 (밝은 연두색 커스텀 디자인 유지)
             with col3:
                 # 색상 결정
                 if percent_change >= 0:
@@ -90,7 +90,6 @@ try:
                 
                 # HTML을 이용해 커스텀 디자인 적용
                 st.markdown('<p style="font-size: 14px; margin-bottom: -5px; color: #555;">상승률</p>', unsafe_allow_html=True)
-                # font-weight: 600 (Semi-Bold)
                 st.markdown(f"""
                 <p style="font-size: 32px; font-weight: 600; color: {color_code}; margin: 0;">
                     {percent_change:+.2f}%
@@ -113,8 +112,6 @@ try:
 
             # 상세 데이터 (접기/펴기) - 최신순 정렬 + 품목명 표시
             with st.expander("📄 전체 데이터 표로 보기"):
-                # to_frame() 안을 비워두면 자동으로 '품목명'이 컬럼 제목이 됩니다.
-                # sort_index(ascending=False)로 최신 날짜가 위에 오도록 정렬합니다.
                 st.dataframe(df.loc[selected_item].to_frame().sort_index(ascending=False))
 
 except Exception as e:

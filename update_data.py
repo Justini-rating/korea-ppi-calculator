@@ -2,7 +2,7 @@ import pandas as pd
 import requests
 import os
 import datetime
-import time
+from dateutil.relativedelta import relativedelta
 
 # --------------------------------------------------------------------------
 # 1. 설정
@@ -10,134 +10,125 @@ import time
 API_KEY = os.environ.get("KOSIS_API_KEY")
 ORG_ID = "301"
 TBL_ID = "DT_404Y016"       # 생산자물가지수 (품목별)
-ITM_ID = "13103134764999"   # 항목 ID (지수)
-
+ITM_ID = "13103134764999"   # 항목 ID
 FILE_NAME = "data.csv"
 
 # --------------------------------------------------------------------------
-# 2. 함수: 1년치 데이터 가져오기
+# 2. 날짜 계산 (최근 3개월만 조회 -> 가볍고 빠름)
 # --------------------------------------------------------------------------
-def fetch_kosis_data(start_ym, end_ym):
-    print(f"   📡 데이터 요청: {start_ym} ~ {end_ym} ...", end=" ")
-    url = "https://kosis.kr/openapi/Param/statisticsParameterData.do"
-    params = {
-        "method": "getList",
-        "apiKey": API_KEY,
-        "itmId": ITM_ID,
-        "objL1": "ALL",
-        "objL2": "", 
-        "objL3": "",
-        "objL4": "",
-        "objL5": "",
-        "objL6": "",
-        "objL7": "",
-        "objL8": "",
-        "format": "json",
-        "jsonVD": "Y",
-        "prdSe": "M",
-        "orgId": ORG_ID,
-        "tblId": TBL_ID,
-        "startPrdDe": start_ym,
-        "endPrdDe": end_ym
-    }
-    
-    try:
-        response = requests.get(url, params=params, timeout=60)
-        data = response.json()
-        
-        # 에러 체크
-        if isinstance(data, dict) and 'err' in data:
-            print(f"❌ 실패 ({data.get('errMsg')})")
-            return None
-        
-        if not data:
-            print("⚠️ 데이터 없음")
-            return None
-            
-        print(f"✅ 성공 ({len(data)}건)")
-        return pd.DataFrame(data)
-        
-    except Exception as e:
-        print(f"❌ 에러 ({e})")
-        return None
-
-# --------------------------------------------------------------------------
-# 3. 메인 로직: 2019년부터 연도별 루프
-# --------------------------------------------------------------------------
-print("🔄 전체 데이터 새로 받기 시작 (꼬리표 제거 모드)")
-
 now = datetime.datetime.now()
-current_year = now.year
-current_month = now.month
+end_date = now.strftime("%Y%m")
 
-# 2019년부터 시작
-start_year = 2019
+# 지난달, 지지난달 포함 3개월치 요청 (수정된 데이터 반영 및 검증용)
+start_dt = now - relativedelta(months=3)
+start_date = start_dt.strftime("%Y%m")
 
-all_data_frames = []
+print(f"🔄 월간 업데이트 모드 가동: {start_date} ~ {end_date}")
 
-for year in range(start_year, current_year + 1):
-    # 시작월
-    s_date = f"{year}01"
+# --------------------------------------------------------------------------
+# 3. KOSIS API 호출
+# --------------------------------------------------------------------------
+url = "https://kosis.kr/openapi/Param/statisticsParameterData.do"
+params = {
+    "method": "getList",
+    "apiKey": API_KEY,
+    "itmId": ITM_ID,
+    "objL1": "ALL",
+    "objL2": "", 
+    "objL3": "",
+    "objL4": "",
+    "objL5": "",
+    "objL6": "",
+    "objL7": "",
+    "objL8": "",
+    "format": "json",
+    "jsonVD": "Y",
+    "prdSe": "M",
+    "orgId": ORG_ID,
+    "tblId": TBL_ID,
+    "startPrdDe": start_date,
+    "endPrdDe": end_date
+}
+
+try:
+    response = requests.get(url, params=params, timeout=60)
+    data = response.json()
     
-    # 종료월 계산
-    if year == current_year:
-        e_date = now.strftime("%Y%m") # 올해는 오늘 날짜까지
+    if isinstance(data, dict) and 'err' in data:
+        print(f"❌ API 오류: {data.get('errMsg')}")
+        exit(1)
+        
+    if not data:
+        print("ℹ️ 아직 이번 달 신규 데이터가 발표되지 않았습니다.")
+        exit(0) # 에러 아님, 정상 종료
+
+    # --------------------------------------------------------------------------
+    # 4. 신규 데이터 가공 (규칙 통일)
+    # --------------------------------------------------------------------------
+    df_fetched = pd.DataFrame(data)
+    
+    # (1) 품목명 생성 (C1_NM + ITM_NM)
+    if 'C1_NM' in df_fetched.columns:
+        df_fetched['Item_Name'] = df_fetched['C1_NM'].astype(str) + "_" + df_fetched['ITM_NM'].astype(str)
     else:
-        e_date = f"{year}12"          # 과거는 12월까지 꽉 채워서
-        
-    # 미래 날짜 요청 방지
-    if int(s_date) > int(now.strftime("%Y%m")):
-        break
-        
-    # 데이터 요청
-    df_part = fetch_kosis_data(s_date, e_date)
-    
-    if df_part is not None and not df_part.empty:
-        all_data_frames.append(df_part)
-    
-    # 서버에 부담 주지 않게 1초 휴식
-    time.sleep(1)
+        df_fetched['Item_Name'] = df_fetched['ITM_NM'].astype(str)
 
-# --------------------------------------------------------------------------
-# 4. 데이터 병합 및 꼬리표 제거
-# --------------------------------------------------------------------------
-if not all_data_frames:
-    print("❌ 수집된 데이터가 없습니다. 종료합니다.")
+    # (2) [핵심] 기존 파일과 똑같이 꼬리표 제거! (매칭을 위해 필수)
+    df_fetched['Item_Name'] = df_fetched['Item_Name'].str.replace('_생산자물가지수(품목별)', '', regex=False)
+    
+    # 숫자형 변환
+    df_fetched['DT'] = pd.to_numeric(df_fetched['DT'], errors='coerce')
+
+    # 피벗 (새로운 데이터셋)
+    df_new = df_fetched.pivot_table(index='Item_Name', columns='PRD_DE', values='DT')
+    print(f"✅ 신규 데이터 확보: {len(df_new)}개 품목")
+
+    # --------------------------------------------------------------------------
+    # 5. 기존 데이터와 병합 (Smart Merge)
+    # --------------------------------------------------------------------------
+    if not os.path.exists(FILE_NAME):
+        print("📂 기존 파일이 없어서 새 파일로 저장합니다.")
+        df_final = df_new
+    else:
+        print("📂 기존 data.csv에 업데이트를 반영합니다...")
+        # 기존 데이터 로드
+        df_old = pd.read_csv(FILE_NAME, encoding='utf-8')
+        
+        # 인덱스 설정
+        if '품목 / 시점' in df_old.columns:
+            df_old.set_index('품목 / 시점', inplace=True)
+        else:
+            df_old.set_index(df_old.columns[0], inplace=True)
+
+        # [검증] 이름이 같은지 확인
+        common = df_old.index.intersection(df_new.index)
+        print(f"🔎 매칭 확인: {len(common)}개 품목이 일치합니다. (정상)")
+        
+        # 1) 겹치는 기간(최근 3개월) 값 갱신 (Update)
+        # 통계청에서 값을 정정한 경우 반영됨
+        df_final = df_old.copy()
+        df_final.update(df_new)
+        
+        # 2) 새로운 기간(Month) 추가 (Append Columns)
+        new_months = [col for col in df_new.columns if col not in df_old.columns]
+        if new_months:
+            print(f"🆕 새로운 달({new_months}) 데이터가 추가됩니다!")
+            # join을 사용하여 새로운 열을 붙임
+            df_final = df_final.join(df_new[new_months])
+        else:
+            print("ℹ️ 새로운 달은 없습니다. (기존 값만 최신화)")
+
+    # --------------------------------------------------------------------------
+    # 6. 저장
+    # --------------------------------------------------------------------------
+    df_final.index.name = '품목 / 시점'
+    
+    # 날짜순 정렬
+    df_final = df_final.sort_index(axis=1)
+    
+    df_final.to_csv(FILE_NAME, encoding='utf-8-sig')
+    print(f"💾 {FILE_NAME} 업데이트 완료! (최종 데이터 기준: {df_final.columns[-1]})")
+
+except Exception as e:
+    print(f"❌ 실행 중 오류 발생: {e}")
     exit(1)
-
-print("🧩 데이터 병합 및 이름 정리 중...")
-df_total = pd.concat(all_data_frames, ignore_index=True)
-
-# (1) 품목명 생성: C1_NM + "_" + ITM_NM
-# 예: 쌀 + "_" + 지수 -> "쌀_지수" (혹은 ITM_NM이 '생산자물가지수(품목별)'일 수 있음)
-if 'C1_NM' in df_total.columns:
-    df_total['Item_Name'] = df_total['C1_NM'].astype(str) + "_" + df_total['ITM_NM'].astype(str)
-else:
-    df_total['Item_Name'] = df_total['ITM_NM'].astype(str)
-
-# (2) [핵심] 꼬리표 떼기!
-# "_생산자물가지수(품목별)" 이라는 글자가 있으면 삭제해버림
-df_total['Item_Name'] = df_total['Item_Name'].str.replace('_생산자물가지수(품목별)', '', regex=False)
-
-# 숫자형 변환
-df_total['DT'] = pd.to_numeric(df_total['DT'], errors='coerce')
-
-# (3) 중복 제거 및 피벗
-# 혹시 모를 중복 데이터 제거
-df_total = df_total.drop_duplicates(subset=['Item_Name', 'PRD_DE'])
-
-# 피벗 (행: 품목명, 열: 날짜, 값: 지수)
-df_pivot = df_total.pivot(index='Item_Name', columns='PRD_DE', values='DT')
-
-# 인덱스 이름 설정
-df_pivot.index.name = '품목 / 시점'
-
-# 날짜순 정렬 (201901 -> 202602)
-df_pivot = df_pivot.sort_index(axis=1)
-
-# --------------------------------------------------------------------------
-# 5. 저장
-# --------------------------------------------------------------------------
-df_pivot.to_csv(FILE_NAME, encoding='utf-8-sig')
-print(f"💾 {FILE_NAME} 저장 완료! (총 {len(df_pivot)}개 품목)")
-print(f"   예시 품목명: {df_pivot.index[0]}") # 이름 잘 바뀌었는지 로그로 확인

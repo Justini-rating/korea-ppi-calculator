@@ -2,51 +2,47 @@ name: Monthly Data Update
 
 on:
   schedule:
-    - cron: '0 0 23 * *' # 매월 23일 자동 실행 유지
-  workflow_dispatch:      # 수동 실행 버튼 유지
+    - cron: '0 0 23 * *' # 매월 23일 자동 실행
+  workflow_dispatch:      # 수동 실행 버튼
 
 jobs:
-  update-data:
+  update:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
     steps:
-      # 1. 저장소 최신 상태 강제 동기화
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # 모든 기록을 가져와야 충돌 해결 가능
 
-      # 2. 파이썬 설정
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
 
-      # 3. 라이브러리 설치
-      - name: Install dependencies
-        run: pip install pandas requests openpyxl python-dateutil
+      - name: Install
+        run: pip install pandas requests python-dateutil
 
-      # 4. 데이터 업데이트 실행
-      - name: Run update script
+      - name: Run
         env:
           KOSIS_API_KEY: ${{ secrets.KOSIS_API_KEY }}
         run: python update_data.py
 
-      # 5. [핵심] 모든 거절을 무시하는 'Nuclear Push'
-      - name: Nuclear Push
+      - name: Commit and Push (No-Reject Logic)
         run: |
           git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          
-          # 서버의 최신 변경사항을 일단 가져와서 내 것과 합침 (충돌 방지 1차)
-          git pull origin main --rebase
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
           git add data.csv
           
-          # 변경사항이 없으면 종료, 있으면 커밋
-          git diff --staged --quiet || git commit -m "Auto-update data: $(date +'%Y-%m-%d')"
-          
-          # [해결사] --force를 사용하여 서버의 rejected 에러를 물리적으로 무시
-          git push origin main --force
+          # 변경 사항이 있을 때만 진행
+          if ! git diff --staged --quiet; then
+            git commit -m "Auto-update: $(date +'%Y-%m-%d')"
+            
+            # [해결사] 서버 내용을 먼저 가져와 합친 뒤 푸시 (충돌 원천 차단)
+            git pull --rebase origin main
+            git push origin main
+          else
+            echo "No changes detected."
+          fi

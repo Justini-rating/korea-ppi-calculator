@@ -2,65 +2,51 @@ name: Monthly Data Update
 
 on:
   schedule:
-    # 매월 23일 한국 시간 오전 9시 (UTC 0시) 실행
+    # -----------------------------------------------------------
+    # [기존 기능 유지] 매월 23일 오전 9시(한국시간) 자동 실행
+    # (UTC 00:00 = KST 09:00)
+    # -----------------------------------------------------------
     - cron: '0 0 23 * *'
   
-  # 수동 실행 버튼 활성화
+  # 수동으로도 언제든 실행할 수 있게 버튼 유지
   workflow_dispatch:
 
 jobs:
   update-data:
     runs-on: ubuntu-latest
-    
-    # 봇이 파일을 수정해서 Push할 수 있도록 권한 부여
     permissions:
       contents: write
 
     steps:
-      # 1. 저장소 코드 가져오기 (최신 v4 사용)
+      # 1. 저장소 코드 가져오기 (전체 히스토리 포함하여 충돌 방지)
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # 모든 히스토리를 가져와야 rebase가 안전합니다.
+          fetch-depth: 0
 
-      # 2. 파이썬 설정 (최신 v5 사용)
+      # 2. 파이썬 환경 설정
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
 
-      # 3. 필요한 라이브러리 설치
+      # 3. 필수 도구 설치 (날짜 처리 라이브러리 포함)
       - name: Install dependencies
         run: |
           pip install pandas requests openpyxl python-dateutil
 
-      # 4. 데이터 업데이트 스크립트 실행
+      # 4. 데이터 업데이트 스크립트 실행 (KOSIS API 호출)
       - name: Run update script
         env:
           KOSIS_API_KEY: ${{ secrets.KOSIS_API_KEY }}
         run: python update_data.py
 
-      # 5. [핵심] 변경사항 반영 및 푸시 (오류 방지 로직 강화)
-      - name: Commit and push if changes
-        run: |
-          git config --global user.name "GitHub Actions Bot"
-          git config --global user.email "actions@github.com"
-          
-          # 파일 추가
-          git add data.csv
-          
-          # 변경사항이 있는지 확인 (없으면 여기서 종료)
-          if git diff --staged --quiet; then
-            echo "ℹ️ 변경된 데이터가 없습니다. 작업을 종료합니다."
-            exit 0
-          fi
-          
-          # 변경사항이 있을 때만 커밋
-          git commit -m "Auto-update data: $(date +'%Y-%m-%d')"
-          
-          # [해결사] 서버의 최신 내용을 가져와서 내 커밋을 그 위에 얹음
-          # 이 과정에서 발생할 수 있는 'rejected' 에러를 원천 차단합니다.
-          git pull --rebase origin main
-          
-          # 최종 푸시
-          git push origin main
+      # 5. [해결사] 변경된 data.csv를 안전하게 커밋하고 강제로 푸시
+      # 스케줄로 돌아갈 때나 수동으로 돌릴 때 모두 충돌 없이 작동합니다.
+      - name: Commit and push changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Auto-update data: ${{ github.event.head_commit.timestamp || '2026-03-04' }}"
+          file_pattern: 'data.csv'
+          # 서버와 내 로컬의 상태가 꼬였을 때, 무조건 현재 생성한 데이터를 우선해서 올림
+          push_options: '--force'

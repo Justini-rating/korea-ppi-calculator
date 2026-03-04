@@ -2,9 +2,8 @@ name: Monthly Data Update
 
 on:
   schedule:
-    # 매월 23일 한국시간 오전 9시 실행 (기능 유지)
-    - cron: '0 0 23 * *'
-  workflow_dispatch:
+    - cron: '0 0 23 * *' # 매월 23일 자동 실행 기능 유지
+  workflow_dispatch:      # 수동 실행 버튼 유지
 
 jobs:
   update-data:
@@ -13,37 +12,39 @@ jobs:
       contents: write
 
     steps:
-      # 1. 저장소 체크아웃 (모든 히스토리를 다 가져와서 충돌 방지)
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # 모든 과거 기록을 가져와서 충돌 원천 차단
 
-      # 2. 파이썬 설정
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
 
-      # 3. 필수 패키지 설치
       - name: Install dependencies
         run: |
           pip install pandas requests openpyxl python-dateutil
 
-      # 4. 데이터 업데이트 스크립트 실행
       - name: Run update script
         env:
           KOSIS_API_KEY: ${{ secrets.KOSIS_API_KEY }}
         run: python update_data.py
 
-      # 5. [가장 중요] 전용 도구를 사용한 강제 업데이트
-      # stefanzweifel 액션은 이런 'rejected' 상황을 가장 잘 해결해주는 공식적인 도구입니다.
-      - name: Commit and Push changes
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "Auto-update PPI data: $(date +'%Y-%m-%d')"
-          file_pattern: 'data.csv'
-          # 서버에 어떤 변경사항이 있더라도 현재 만든 데이터를 우선시함
-          push_options: '--force'
-          # 봇 계정 자동 설정
-          commit_author: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+      - name: Force Push Data
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+          git add data.csv
+          
+          # 변경사항이 없으면 종료, 있으면 강제 푸시
+          if git diff --staged --quiet; then
+            echo "변경사항 없음"
+            exit 0
+          fi
+          
+          git commit -m "Auto-update data: $(date +'%Y-%m-%d')"
+          
+          # [핵심] 서버의 어떤 거절도 무시하고 강제로 밀어넣음
+          git push origin main --force

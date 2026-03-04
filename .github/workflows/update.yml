@@ -2,13 +2,10 @@ name: Monthly Data Update
 
 on:
   schedule:
-    # -----------------------------------------------------------
-    # [기존 기능 유지] 매월 23일 오전 9시(한국시간) 자동 실행
-    # (UTC 00:00 = KST 09:00)
-    # -----------------------------------------------------------
+    # 매월 23일 한국시간 오전 9시 자동 실행 (기능 유지)
     - cron: '0 0 23 * *'
   
-  # 수동으로도 언제든 실행할 수 있게 버튼 유지
+  # 수동 실행 버튼 유지
   workflow_dispatch:
 
 jobs:
@@ -18,35 +15,45 @@ jobs:
       contents: write
 
     steps:
-      # 1. 저장소 코드 가져오기 (전체 히스토리 포함하여 충돌 방지)
+      # 1. 저장소 최신 상태 가져오기
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # 히스토리 전체를 가져와서 꼬임 방지
 
-      # 2. 파이썬 환경 설정
+      # 2. 파이썬 설정
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
 
-      # 3. 필수 도구 설치 (날짜 처리 라이브러리 포함)
+      # 3. 라이브러리 설치
       - name: Install dependencies
         run: |
           pip install pandas requests openpyxl python-dateutil
 
-      # 4. 데이터 업데이트 스크립트 실행 (KOSIS API 호출)
+      # 4. 데이터 업데이트 스크립트 실행
       - name: Run update script
         env:
           KOSIS_API_KEY: ${{ secrets.KOSIS_API_KEY }}
         run: python update_data.py
 
-      # 5. [해결사] 변경된 data.csv를 안전하게 커밋하고 강제로 푸시
-      # 스케줄로 돌아갈 때나 수동으로 돌릴 때 모두 충돌 없이 작동합니다.
+      # 5. [핵심 해결책] 강제로 서버에 밀어넣기
+      # 'Rejected' 에러가 나도 무시하고 서버를 현재 데이터로 덮어씌웁니다.
       - name: Commit and push changes
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "Auto-update data: ${{ github.event.head_commit.timestamp || '2026-03-04' }}"
-          file_pattern: 'data.csv'
-          # 서버와 내 로컬의 상태가 꼬였을 때, 무조건 현재 생성한 데이터를 우선해서 올림
-          push_options: '--force'
+        run: |
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "actions@github.com"
+          
+          git add data.csv
+          
+          # 변경사항이 없으면 조용히 종료
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          
+          git commit -m "Auto-update data: $(date +'%Y-%m-%d')"
+          
+          # [핵심] --force를 붙여서 서버의 거부를 강제로 뚫고 올라갑니다.
+          git push origin main --force

@@ -2,53 +2,65 @@ name: Monthly Data Update
 
 on:
   schedule:
-    # -----------------------------------------------------------
-    # [시간 설정] UTC 기준 (한국 시간 - 9시간)
-    # 0 0 23 * * => UTC 0시 0분 = 한국 시간 오전 9시
-    # 매월 23일 오전 9시에 자동 실행됩니다.
-    # -----------------------------------------------------------
+    # 매월 23일 한국 시간 오전 9시 (UTC 0시) 실행
     - cron: '0 0 23 * *'
   
-  # 수동으로 실행 버튼(Run workflow)을 누를 수 있게 해주는 설정
+  # 수동 실행 버튼 활성화
   workflow_dispatch:
 
 jobs:
   update-data:
     runs-on: ubuntu-latest
     
-    # -----------------------------------------------------------
-    # [권한 설정] 봇이 코드를 수정해서 올릴(Push) 수 있게 허용
-    # -----------------------------------------------------------
+    # 봇이 파일을 수정해서 Push할 수 있도록 권한 부여
     permissions:
       contents: write
 
     steps:
+      # 1. 저장소 코드 가져오기 (최신 v4 사용)
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 모든 히스토리를 가져와야 rebase가 안전합니다.
 
+      # 2. 파이썬 설정 (최신 v5 사용)
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.9'
 
-      # -----------------------------------------------------------
-      # [중요] 필요한 도구 설치
-      # dateutil이 새로 추가되었으므로 꼭 포함해야 합니다!
-      # -----------------------------------------------------------
+      # 3. 필요한 라이브러리 설치
       - name: Install dependencies
         run: |
           pip install pandas requests openpyxl python-dateutil
 
+      # 4. 데이터 업데이트 스크립트 실행
       - name: Run update script
         env:
           KOSIS_API_KEY: ${{ secrets.KOSIS_API_KEY }}
         run: python update_data.py
 
+      # 5. [핵심] 변경사항 반영 및 푸시 (오류 방지 로직 강화)
       - name: Commit and push if changes
         run: |
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "actions@github.com"
+          
+          # 파일 추가
           git add data.csv
-          # 변경사항이 있을 때만 커밋 (에러 방지)
-          git commit -m "Auto-update data: $(date +'%Y-%m-%d')" || exit 0
-          git push
+          
+          # 변경사항이 있는지 확인 (없으면 여기서 종료)
+          if git diff --staged --quiet; then
+            echo "ℹ️ 변경된 데이터가 없습니다. 작업을 종료합니다."
+            exit 0
+          fi
+          
+          # 변경사항이 있을 때만 커밋
+          git commit -m "Auto-update data: $(date +'%Y-%m-%d')"
+          
+          # [해결사] 서버의 최신 내용을 가져와서 내 커밋을 그 위에 얹음
+          # 이 과정에서 발생할 수 있는 'rejected' 에러를 원천 차단합니다.
+          git pull --rebase origin main
+          
+          # 최종 푸시
+          git push origin main

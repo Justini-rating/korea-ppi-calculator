@@ -2,10 +2,13 @@ name: Monthly Data Update
 
 on:
   schedule:
-    # KST 기준: 매월 24일 08:00
-    # UTC 기준: 매월 23일 23:00 (KST - 9시간)
+    # KST 기준: 매월 24일 08:00 (UTC 기준 23일 23:00)
     - cron: '0 23 23 * *' 
   workflow_dispatch:      # 수동 실행 버튼
+
+# [경고 해결] Node.js 20 지원 종료(26.6.2) 대비 Node.js 24 강제 사용 설정
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   update:

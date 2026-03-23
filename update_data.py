@@ -2,6 +2,7 @@ import pandas as pd
 import requests
 import os
 import datetime
+import time  # 추가됨: 재시도 대기 시간을 위한 모듈
 from dateutil.relativedelta import relativedelta
 
 # 설정
@@ -26,10 +27,32 @@ params = {
     "orgId": ORG_ID, "tblId": TBL_ID, "startPrdDe": start_date, "endPrdDe": end_date
 }
 
+# [핵심 추가] 봇 차단을 피하기 위한 브라우저 위장 헤더
+headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+}
+
 try:
-    response = requests.get(url, params=params, timeout=60)
-    data = response.json()
+    # [핵심 추가] 네트워크 오류 대비 최대 3번 재시도하는 로직 적용
+    max_retries = 3
+    data = None
     
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(url, params=params, headers=headers, timeout=60)
+            response.raise_for_status()  # HTTP 에러 발생 시 예외 처리로 넘김
+            data = response.json()
+            break  # 정상적으로 응답받으면 반복문 탈출
+        except requests.exceptions.RequestException as e:
+            print(f"⚠️ API 호출 실패 ({attempt + 1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                print("⏳ 5초 후 재시도합니다...")
+                time.sleep(5)
+            else:
+                print("❌ 최종 실행 오류: KOSIS 서버 연결을 복구할 수 없습니다.")
+                exit(1)
+
+    # 응답 데이터 검증
     if isinstance(data, dict) and 'err' in data:
         print(f"❌ API 오류: {data.get('errMsg')}"); exit(1)
     if not data:
@@ -65,4 +88,4 @@ try:
     print(f"✅ {FILE_NAME} 업데이트 완료! (최종 품목: {len(df_final)}개)")
 
 except Exception as e:
-    print(f"❌ 실행 오류: {e}"); exit(1)
+    print(f"❌ 데이터 처리 중 오류 발생: {e}"); exit(1)

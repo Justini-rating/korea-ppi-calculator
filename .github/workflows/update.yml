@@ -2,7 +2,9 @@ name: Monthly Data Update
 
 on:
   schedule:
-    - cron: '0 0 23 * *' # 매월 23일 자동 실행
+    # KST 기준: 매월 24일 08:00
+    # UTC 기준: 매월 23일 23:00 (KST - 9시간)
+    - cron: '0 23 23 * *' 
   workflow_dispatch:      # 수동 실행 버튼
 
 jobs:

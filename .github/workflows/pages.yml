@@ -1,0 +1,50 @@
+name: Deploy app to GitHub Pages
+
+# 앱 화면(index.html 등)과 data.csv를 GitHub Pages로 배포해요.
+# - 직접 파일을 올리면(push) 바로 배포
+# - 매달 데이터 갱신(Monthly Data Update)이 끝나면 자동으로 다시 배포
+#   (봇이 GITHUB_TOKEN으로 올린 커밋은 Pages를 다시 빌드하지 않아서 이렇게 연결해요)
+on:
+  push:
+    branches: [main]
+  workflow_run:
+    workflows: ["Monthly Data Update"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout latest main
+        uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Collect app files
+        run: |
+          mkdir _site
+          cp -r index.html manifest.webmanifest sw.js data.csv icons _site/
+
+      - uses: actions/configure-pages@v6
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v5

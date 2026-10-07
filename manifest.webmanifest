@@ -1,0 +1,18 @@
+{
+  "name": "PPI 상승률 계산기",
+  "short_name": "PPI 계산기",
+  "description": "KOSIS 품목별 생산자물가지수로 두 시점 사이 상승률을 계산해요.",
+  "lang": "ko",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#EDF0F2",
+  "theme_color": "#EDF0F2",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

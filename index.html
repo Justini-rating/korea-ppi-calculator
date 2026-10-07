@@ -1,0 +1,969 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PPI 상승률 계산기</title>
+<meta name="description" content="KOSIS 품목별 생산자물가지수로 두 시점 사이 상승률을 계산해요.">
+<meta name="theme-color" content="#EDF0F2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#101418" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="PPI 계산기">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --bg: #EDF0F2;
+    --panel: #FFFFFF;
+    --paper: #FFFFFF;
+    --grid: rgba(23, 33, 43, 0.055);
+    --ink: #17212B;
+    --ink-2: #4A5562;
+    --ink-3: #5F6A76;
+    --line: #DCE1E5;
+    --line-strong: #C3CBD2;
+    --up: #D1312F;
+    --down: #1E5BC8;
+    --mark: #F2CC3C;
+    --mark-wash: rgba(255, 224, 102, 0.66);
+    --area: rgba(23, 33, 43, 0.035);
+    --hover: rgba(23, 33, 43, 0.055);
+    --scrim: rgba(16, 20, 24, 0.42);
+    --shadow: 0 18px 48px rgba(23, 33, 43, 0.18);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101418;
+      --panel: #181E25;
+      --paper: #181E25;
+      --grid: rgba(231, 236, 240, 0.045);
+      --ink: #E7ECF0;
+      --ink-2: #B2BCC5;
+      --ink-3: #939EA9;
+      --line: #29323B;
+      --line-strong: #3A4550;
+      --up: #E5554E;
+      --down: #5F8FF0;
+      --mark: #E8C547;
+      --mark-wash: rgba(232, 197, 71, 0.26);
+      --area: rgba(231, 236, 240, 0.04);
+      --hover: rgba(231, 236, 240, 0.07);
+      --scrim: rgba(0, 0, 0, 0.6);
+      --shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+      color-scheme: dark;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "IBM Plex Sans KR", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+    font-size: 16px;
+    line-height: 1.55;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body.locked { overflow: hidden; }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+  .wrap {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: calc(14px + env(safe-area-inset-top)) 16px calc(36px + env(safe-area-inset-bottom));
+  }
+
+  /* app bar */
+  .bar { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+  .bar h1 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; margin-right: auto; }
+  .asof {
+    font-size: 13px; color: var(--ink-2); padding: 4px 10px; border-radius: 999px;
+    border: 1px solid var(--line-strong); white-space: nowrap;
+  }
+  .install {
+    height: 30px; padding: 0 12px; border-radius: 999px; font-size: 13px; font-weight: 600;
+    border: 0; background: var(--ink); color: var(--panel); white-space: nowrap;
+  }
+  .install[hidden], .asof:empty { display: none; }
+
+  /* item picker button */
+  .pick {
+    margin-top: 12px; width: 100%; display: flex; align-items: center; gap: 12px; text-align: left;
+    padding: 12px 14px 12px 16px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel);
+  }
+  .pick .t { flex: 1; min-width: 0; }
+  .pick .l { display: block; font-size: 12px; color: var(--ink-3); font-weight: 500; }
+  .pick .v { display: block; font-size: 19px; font-weight: 600; line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pick .chg { flex: none; font-size: 14px; font-weight: 600; color: var(--ink-2); padding: 6px 10px; border-radius: 8px; background: var(--hover); }
+  .pick:disabled { opacity: 0.6; cursor: default; }
+
+  /* period */
+  .period { margin-top: 10px; display: grid; gap: 10px; }
+  .seg {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 4px;
+    border-radius: 12px; background: var(--panel); border: 1px solid var(--line);
+  }
+  .seg button {
+    height: 36px; border: 0; border-radius: 9px; background: transparent; font-size: 14px; font-weight: 500; color: var(--ink-2);
+  }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--panel); font-weight: 600; }
+  .seg button:disabled { opacity: 0.35; cursor: default; }
+  .months { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 6px; }
+  .months .arrow { color: var(--ink-3); font-size: 15px; }
+  .mfield { position: relative; }
+  .mfield .cap {
+    position: absolute; left: 13px; top: 6px; font-size: 11px; line-height: 1; color: var(--ink-3); pointer-events: none;
+  }
+  .mfield select {
+    width: 100%; height: 48px; padding: 16px 30px 0 12px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--panel); font-size: 16px; font-weight: 500;
+    appearance: none; -webkit-appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, var(--ink-2) 50%), linear-gradient(135deg, var(--ink-2) 50%, transparent 50%);
+    background-position: calc(100% - 17px) 22px, calc(100% - 12px) 22px;
+    background-size: 5px 5px; background-repeat: no-repeat;
+  }
+
+  /* result slip: grid paper + highlighter */
+  .slip {
+    margin-top: 18px; padding: 20px 18px 16px; border-radius: 16px; border: 1px solid var(--line);
+    background-color: var(--paper);
+    background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 14px 14px; background-position: -1px -1px;
+  }
+  .slip[hidden] { display: none; }
+  .s-item { margin: 0; font-size: 20px; font-weight: 700; line-height: 1.3; }
+  .s-period { margin: 2px 0 0; font-size: 14px; color: var(--ink-2); }
+  .s-pct {
+    margin: 14px 0 0; display: flex; align-items: center; gap: 8px; white-space: nowrap;
+    font-size: clamp(46px, 16.5vw, 84px); font-weight: 600; line-height: 1; letter-spacing: -0.03em;
+  }
+  .s-pct.long { font-size: clamp(38px, 12.5vw, 68px); }
+  .s-pct .num { background: linear-gradient(transparent 58%, var(--mark-wash) 58%); padding: 0 6px; margin-left: -6px; }
+  .s-pct .dir { font-size: 0.38em; }
+  .s-pct.up { color: var(--up); }
+  .s-pct.down { color: var(--down); }
+  .s-formula { margin: 14px 0 0; font-size: 14px; color: var(--ink-2); }
+  .s-formula b { color: var(--ink); font-weight: 600; }
+  .stats {
+    margin: 16px 0 0; padding-top: 14px; border-top: 1px dashed var(--line-strong);
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+  }
+  .stats div { min-width: 0; }
+  .stats dt { font-size: 12px; color: var(--ink-3); }
+  .stats dd { margin: 2px 0 0; font-size: 17px; font-weight: 600; line-height: 1.3; }
+  .stats dd small { display: block; font-size: 12px; font-weight: 400; color: var(--ink-3); }
+  .stats dd.up { color: var(--up); }
+  .stats dd.down { color: var(--down); }
+  .stats dd.na { font-size: 14px; font-weight: 500; color: var(--ink-3); }
+  .s-foot { margin-top: 14px; display: flex; justify-content: flex-end; }
+  .copy {
+    height: 36px; padding: 0 14px; border-radius: 10px; font-size: 14px; font-weight: 600;
+    border: 1px solid var(--line-strong); background: var(--panel);
+  }
+
+  .msg { margin-top: 18px; padding: 18px; border-radius: 16px; border: 1px solid var(--line); background: var(--panel); }
+  .msg p { margin: 0; }
+  .msg .btn { margin-top: 12px; height: 38px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--panel); font-weight: 600; }
+  .msg[hidden], .msg .btn[hidden], .trend[hidden] { display: none; }
+
+  /* chart */
+  .trend { margin-top: 28px; }
+  .trend-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .trend h2 { margin: 0; font-size: 16px; font-weight: 700; }
+  .legend { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-3); }
+  .legend .sw { width: 14px; height: 10px; border-radius: 2px; background: var(--mark-wash); box-shadow: inset 0 0 0 1px var(--mark); }
+  .chart { position: relative; margin-top: 10px; height: 250px; touch-action: pan-y; user-select: none; -webkit-user-select: none; border-radius: 6px; }
+  .chart svg { display: block; width: 100%; height: 100%; overflow: visible; }
+  .chart .tick { font-size: 11px; fill: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .tip {
+    position: absolute; top: 0; pointer-events: none; padding: 6px 10px; border-radius: 10px;
+    background: var(--panel); border: 1px solid var(--line-strong); box-shadow: var(--shadow); white-space: nowrap;
+  }
+  .tip[hidden] { display: none; }
+  .tip .v { display: block; font-size: 16px; font-weight: 700; }
+  .tip .m { display: block; font-size: 12px; color: var(--ink-3); }
+
+  /* table */
+  details { margin-top: 18px; border-top: 1px solid var(--line); }
+  summary { padding: 14px 0; font-size: 15px; font-weight: 600; color: var(--ink-2); cursor: pointer; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+  th, td { padding: 8px 6px; text-align: right; border-bottom: 1px solid var(--line); }
+  th:first-child, td:first-child { text-align: left; }
+  th { font-weight: 500; color: var(--ink-3); font-size: 12px; }
+  tr.sel td { background: var(--mark-wash); }
+  td.up { color: var(--up); }
+  td.down { color: var(--down); }
+
+  footer { margin-top: 26px; font-size: 12px; color: var(--ink-3); }
+  footer p { margin: 0 0 4px; }
+
+  /* item search sheet */
+  .sheet { position: fixed; inset: 0; z-index: 50; display: flex; align-items: flex-end; justify-content: center; }
+  .sheet[hidden] { display: none; }
+  .scrim { position: absolute; inset: 0; background: var(--scrim); }
+  .panel {
+    position: relative; width: 100%; max-width: 640px; height: 88vh; height: 88dvh;
+    background: var(--panel); border-radius: 20px 20px 0 0; box-shadow: var(--shadow);
+    display: flex; flex-direction: column; padding-bottom: env(safe-area-inset-bottom);
+    animation: rise 0.22s ease-out;
+  }
+  @keyframes rise { from { transform: translateY(28px); } to { transform: none; } }
+  .grab { width: 36px; height: 4px; border-radius: 2px; background: var(--line-strong); margin: 8px auto 4px; }
+  .p-head { display: flex; align-items: center; gap: 8px; padding: 8px 16px 10px; }
+  .p-head h2 { margin: 0; font-size: 17px; font-weight: 700; margin-right: auto; }
+  .p-close { height: 34px; padding: 0 12px; border: 0; border-radius: 9px; background: var(--hover); font-size: 14px; font-weight: 600; }
+  .p-search { position: relative; padding: 0 16px; }
+  .p-search input {
+    width: 100%; height: 48px; padding: 0 44px 0 14px; border-radius: 12px; border: 1px solid var(--line-strong);
+    background: var(--bg); font-size: 16px;
+  }
+  .p-search input:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px var(--hover); background: var(--panel); }
+  .p-search input::-webkit-search-cancel-button { display: none; }
+  .nowrap { white-space: nowrap; }
+  .p-search .clear {
+    position: absolute; right: 20px; top: 4px; width: 40px; height: 40px; border: 0; background: transparent;
+    font-size: 20px; color: var(--ink-3); border-radius: 8px;
+  }
+  .p-search .clear[hidden] { display: none; }
+  .recent { padding: 12px 16px 2px; }
+  .recent[hidden] { display: none; }
+  .recent h3 { margin: 0 0 8px; font-size: 12px; font-weight: 500; color: var(--ink-3); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chips button { height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line-strong); background: transparent; font-size: 14px; }
+  .p-meta { display: flex; justify-content: space-between; padding: 12px 16px 6px; font-size: 12px; color: var(--ink-3); }
+  .list { list-style: none; margin: 0; padding: 0 8px 12px; overflow: auto; flex: 1; overscroll-behavior: contain; }
+  .list li { display: flex; align-items: center; gap: 12px; padding: 11px 10px; border-radius: 10px; cursor: pointer; }
+  .list li .n { flex: 1; min-width: 0; font-size: 15px; }
+  .list li .c { flex: none; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink-3); }
+  .list li .c.up { color: var(--up); }
+  .list li .c.down { color: var(--down); }
+  .list li.active, .list li:hover { background: var(--hover); }
+  .list li[aria-selected="true"] .n { font-weight: 700; }
+  .list li.note { cursor: default; color: var(--ink-3); font-size: 14px; }
+  .list li.note:hover { background: transparent; }
+  .list mark { background: var(--mark-wash); color: inherit; border-radius: 2px; }
+
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  @media (max-width: 359px) {
+    .months { grid-template-columns: 1fr 1fr; }
+    .months .arrow { display: none; }
+    .mfield select { padding-left: 10px; padding-right: 24px; background-position: calc(100% - 14px) 22px, calc(100% - 9px) 22px; }
+    .stats dd { font-size: 15px; }
+  }
+  @media (min-width: 640px) {
+    .wrap { padding-top: calc(28px + env(safe-area-inset-top)); }
+    .bar h1 { font-size: 20px; }
+    .slip { padding: 26px 26px 20px; }
+    .chart { height: 300px; }
+    .sheet { align-items: center; }
+    .panel { height: min(78vh, 720px); max-width: 560px; border-radius: 20px; }
+    .grab { display: none; }
+    .p-head { padding-top: 16px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .panel { animation: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="bar">
+    <h1>PPI 계산기</h1>
+    <span class="asof" id="asof"></span>
+    <button class="install" id="install" type="button" hidden>설치</button>
+  </header>
+
+  <button class="pick" id="pick" type="button" aria-haspopup="dialog" disabled>
+    <span class="t"><span class="l">품목</span><span class="v" id="pick-v">불러오는 중</span></span>
+    <span class="chg" aria-hidden="true">변경</span>
+  </button>
+
+  <section class="period" aria-label="계산 기간">
+    <div class="seg" role="group" aria-label="비교 시점에서 거슬러 올라가기">
+      <button type="button" data-years="1">1년</button>
+      <button type="button" data-years="2">2년</button>
+      <button type="button" data-years="3">3년</button>
+      <button type="button" data-years="5">5년</button>
+    </div>
+    <div class="months">
+      <label class="mfield"><span class="cap">기준 시점</span><select id="from" disabled></select></label>
+      <span class="arrow" aria-hidden="true">→</span>
+      <label class="mfield"><span class="cap">비교 시점</span><select id="to" disabled></select></label>
+    </div>
+  </section>
+
+  <div class="msg" id="msg" role="status">
+    <p id="msg-text">자료를 불러오는 중이에요.</p>
+    <button class="btn" id="retry" type="button" hidden>다시 불러오기</button>
+  </div>
+
+  <section class="slip" id="slip" hidden aria-labelledby="s-item">
+    <h2 class="s-item" id="s-item"></h2>
+    <p class="s-period" id="s-period"></p>
+    <p class="s-pct" id="s-pct"><span class="dir" id="s-dir" aria-hidden="true"></span><span class="num" id="s-num"></span></p>
+    <p class="s-formula" id="s-formula"></p>
+    <dl class="stats">
+      <div><dt>연평균</dt><dd id="st-cagr"></dd></div>
+      <div><dt>기간 중 최고</dt><dd id="st-max"></dd></div>
+      <div><dt>기간 중 최저</dt><dd id="st-min"></dd></div>
+    </dl>
+    <div class="s-foot"><button class="copy" id="copy" type="button">결과 복사</button></div>
+    <p class="sr" id="live" aria-live="polite"></p>
+  </section>
+
+  <section class="trend" id="trend" hidden aria-labelledby="trend-h">
+    <div class="trend-h">
+      <h2 id="trend-h">지수 추이</h2>
+      <span class="legend"><span class="sw" aria-hidden="true"></span>계산 기간</span>
+    </div>
+    <div class="chart" id="chart" tabindex="0" aria-label="월별 지수 그래프. 좌우 화살표 키로 월별 값을 볼 수 있어요.">
+      <div class="tip" id="tip" hidden><span class="v" id="tip-v"></span><span class="m" id="tip-m"></span></div>
+    </div>
+    <details>
+      <summary>월별 지수 표로 보기</summary>
+      <table>
+        <thead><tr><th scope="col">시점</th><th scope="col">지수</th><th scope="col">전월 대비</th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </details>
+  </section>
+
+  <footer>
+    <p>자료: KOSIS 국내생산자물가지수(품목별), 2020=100. 매월 24일에 자동으로 갱신돼요.</p>
+    <p id="ios-hint" hidden>아이폰은 Safari 공유 버튼에서 ‘홈 화면에 추가’를 누르면 앱처럼 쓸 수 있어요.</p>
+  </footer>
+</div>
+
+<div class="sheet" id="sheet" hidden>
+  <div class="scrim" id="scrim"></div>
+  <div class="panel" role="dialog" aria-modal="true" aria-labelledby="sheet-h">
+    <div class="grab" aria-hidden="true"></div>
+    <div class="p-head">
+      <h2 id="sheet-h">품목 선택</h2>
+      <button class="p-close" id="sheet-close" type="button">닫기</button>
+    </div>
+    <div class="p-search">
+      <input id="q" type="search" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="list"
+             autocomplete="off" spellcheck="false" enterkeyhint="search" placeholder="품목 이름 검색 (예: 철근, 시멘트)">
+      <button class="clear" id="q-clear" type="button" aria-label="검색어 지우기" hidden>×</button>
+    </div>
+    <div class="recent" id="recent" hidden>
+      <h3>최근 본 품목</h3>
+      <div class="chips" id="chips"></div>
+    </div>
+    <div class="p-meta"><span id="count"></span><span id="meta-r"></span></div>
+    <ul class="list" id="list" role="listbox" aria-label="품목 목록"></ul>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---------- helpers ----------
+  const $ = (id) => document.getElementById(id);
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  const STORE_KEY = 'ppi-calc-state-v1';
+  const RECENT_MAX = 6;
+  const PREFERRED_ITEM = '총지수';
+
+  const store = {
+    get() { try { return JSON.parse(localStorage.getItem(STORE_KEY) || 'null') || {}; } catch (e) { return {}; } },
+    set(v) { try { localStorage.setItem(STORE_KEY, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } },
+  };
+
+  const monthLong = (m) => `${m.slice(0, 4)}년 ${parseInt(m.slice(4), 10)}월`;
+  const monthShort = (m) => `${m.slice(0, 4)}.${m.slice(4)}`;
+  const fmtIdx = (v) => v.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const round2 = (v) => Number(v.toFixed(2));
+  const signed = (v, digits = 2) => {
+    const r = Number(v.toFixed(digits));
+    const abs = Math.abs(r).toFixed(digits);
+    return r > 0 ? `+${abs}` : r < 0 ? `−${abs}` : abs;
+  };
+  const dirClass = (v) => (round2(v) > 0 ? 'up' : round2(v) < 0 ? 'down' : '');
+  const norm = (s) => s.toLowerCase().replace(/\s+/g, '');
+
+  function splitCSVLine(line) {
+    const out = [];
+    let cur = '', quoted = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (quoted) {
+        if (c === '"') { if (line[i + 1] === '"') { cur += '"'; i++; } else quoted = false; }
+        else cur += c;
+      } else if (c === '"') quoted = true;
+      else if (c === ',') { out.push(cur); cur = ''; }
+      else cur += c;
+    }
+    out.push(cur);
+    return out;
+  }
+
+  function parseCSV(text) {
+    const lines = text.replace(/^﻿/, '').split(/\r?\n/).filter((l) => l.trim() !== '');
+    if (lines.length < 2) throw new Error('empty');
+    const months = splitCSVLine(lines[0]).slice(1).map((s) => s.trim());
+    if (!months.every((m) => /^\d{6}$/.test(m))) throw new Error('bad header');
+    const items = [];
+    const values = new Map();
+    for (let i = 1; i < lines.length; i++) {
+      const cells = splitCSVLine(lines[i]);
+      const name = cells[0].trim();
+      if (!name || values.has(name)) continue;
+      const row = months.map((_, j) => {
+        const s = (cells[j + 1] || '').replace(/,/g, '').trim();
+        if (s === '') return null;
+        const n = Number(s);
+        return Number.isFinite(n) && n > 0 ? n : null;
+      });
+      items.push(name);
+      values.set(name, row);
+    }
+    return { months, items, values };
+  }
+
+  // ---------- state ----------
+  let data = null;
+  let yoy = new Map();       // item -> change over the last 12 months (for the search list)
+  let recent = [];
+  const state = { item: null, from: 0, to: 0 };
+
+  const firstValid = (row) => row.findIndex((v) => v !== null);
+  const lastValid = (row) => { for (let i = row.length - 1; i >= 0; i--) if (row[i] !== null) return i; return -1; };
+  const nearestValid = (row, idx, dir) => {
+    for (let i = idx; i >= 0 && i < row.length; i += dir) if (row[i] !== null) return i;
+    return dir > 0 ? lastValid(row) : firstValid(row);
+  };
+
+  function setItem(name) {
+    const row = data.values.get(name);
+    state.item = name;
+    if (row[state.to] === null) state.to = nearestValid(row, state.to, -1);
+    if (row[state.from] === null) state.from = nearestValid(row, state.from, +1);
+    recent = [name, ...recent.filter((n) => n !== name)].slice(0, RECENT_MAX);
+  }
+
+  function save() {
+    const latest = data.months.length - 1;
+    store.set({
+      item: state.item,
+      from: data.months[state.from],
+      to: state.to === latest ? 'latest' : data.months[state.to],
+      recent,
+    });
+  }
+
+  // ---------- item sheet ----------
+  const sheet = $('sheet');
+  const q = $('q');
+  const list = $('list');
+  const pickBtn = $('pick');
+  let matches = [];
+  let active = -1;
+  let sheetOpen = false;
+  const MAX_SHOWN = 120;
+
+  function highlight(span, name, query) {
+    const at = query ? name.toLowerCase().indexOf(query.toLowerCase()) : -1;
+    if (at < 0) { span.textContent = name; return; }
+    const m = document.createElement('mark');
+    m.textContent = name.slice(at, at + query.length);
+    span.append(document.createTextNode(name.slice(0, at)), m, document.createTextNode(name.slice(at + query.length)));
+  }
+
+  function findMatches(query) {
+    const k = norm(query);
+    if (!k) {
+      const rest = data.items.filter((n) => n !== PREFERRED_ITEM);
+      return data.values.has(PREFERRED_ITEM) ? [PREFERRED_ITEM, ...rest] : rest;
+    }
+    const starts = [], contains = [];
+    for (const n of data.items) {
+      const nk = norm(n);
+      if (nk.startsWith(k)) starts.push(n);
+      else if (nk.includes(k)) contains.push(n);
+    }
+    return starts.concat(contains);
+  }
+
+  function renderRecent(query) {
+    const box = $('recent');
+    const shown = recent.filter((n) => data.values.has(n));
+    box.hidden = !!query.trim() || shown.length === 0;
+    const chips = $('chips');
+    chips.replaceChildren();
+    for (const n of shown) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = n;
+      b.addEventListener('click', () => choose(n));
+      chips.append(b);
+    }
+  }
+
+  function renderList(query) {
+    matches = findMatches(query);
+    list.replaceChildren();
+    active = -1;
+    q.removeAttribute('aria-activedescendant');
+    renderRecent(query);
+    $('count').textContent = query.trim() ? `${matches.length.toLocaleString('ko-KR')}개 품목` : `전체 ${matches.length.toLocaleString('ko-KR')}개 품목`;
+    $('meta-r').textContent = '최근 1년 변화';
+    if (!matches.length) {
+      const li = document.createElement('li');
+      li.className = 'note';
+      li.textContent = `‘${query.trim()}’와 맞는 품목이 없어요. 더 짧게 검색해 보세요.`;
+      list.append(li);
+      return;
+    }
+    const frag = document.createDocumentFragment();
+    matches.slice(0, MAX_SHOWN).forEach((name, i) => {
+      const li = document.createElement('li');
+      li.id = `opt-${i}`;
+      li.setAttribute('role', 'option');
+      li.setAttribute('aria-selected', String(name === state.item));
+      const n = document.createElement('span');
+      n.className = 'n';
+      highlight(n, name, query.trim());
+      const c = document.createElement('span');
+      const ch = yoy.get(name);
+      c.className = 'c' + (ch == null ? '' : ' ' + dirClass(ch));
+      c.textContent = ch == null ? '–' : `${signed(ch)}%`;
+      li.append(n, c);
+      li.addEventListener('click', () => choose(name));
+      frag.append(li);
+    });
+    if (matches.length > MAX_SHOWN) {
+      const li = document.createElement('li');
+      li.className = 'note';
+      li.textContent = `${(matches.length - MAX_SHOWN).toLocaleString('ko-KR')}개 더 있어요. 검색어를 입력해 좁혀 보세요.`;
+      frag.append(li);
+    }
+    list.append(frag);
+    list.scrollTop = 0;
+  }
+
+  function setActive(i) {
+    const shown = Math.min(matches.length, MAX_SHOWN);
+    if (!shown) return;
+    active = (i + shown) % shown;
+    list.querySelectorAll('li.active').forEach((el) => el.classList.remove('active'));
+    const el = $(`opt-${active}`);
+    el.classList.add('active');
+    el.scrollIntoView({ block: 'nearest' });
+    q.setAttribute('aria-activedescendant', el.id);
+  }
+
+  function openSheet() {
+    if (sheetOpen || !data) return;
+    sheetOpen = true;
+    sheet.hidden = false;
+    document.body.classList.add('locked');
+    q.value = '';
+    $('q-clear').hidden = true;
+    renderList('');
+    history.pushState({ ppiSheet: true }, '');
+    setTimeout(() => q.focus(), 30);
+  }
+
+  function closeSheet(fromPop = false) {
+    if (!sheetOpen) return;
+    sheetOpen = false;
+    sheet.hidden = true;
+    document.body.classList.remove('locked');
+    if (!fromPop && history.state && history.state.ppiSheet) history.back();
+    pickBtn.focus({ preventScroll: true });
+  }
+
+  function choose(name) {
+    setItem(name);
+    closeSheet();
+    render();
+  }
+
+  pickBtn.addEventListener('click', openSheet);
+  $('sheet-close').addEventListener('click', () => closeSheet());
+  $('scrim').addEventListener('click', () => closeSheet());
+  window.addEventListener('popstate', () => { if (sheetOpen) closeSheet(true); });
+  q.addEventListener('input', () => { $('q-clear').hidden = !q.value; renderList(q.value); });
+  $('q-clear').addEventListener('click', () => { q.value = ''; $('q-clear').hidden = true; renderList(''); q.focus(); });
+  sheet.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); closeSheet(); }
+  });
+  q.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActive(active + 1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(active - 1); }
+    else if (e.key === 'Enter') {
+      e.preventDefault();
+      const pick = active >= 0 ? matches[active] : matches[0];
+      if (pick) choose(pick);
+    }
+  });
+
+  // ---------- period ----------
+  const fromSel = $('from');
+  const toSel = $('to');
+  const segs = [...document.querySelectorAll('.seg button')];
+
+  function fillSelect(sel, row) {
+    sel.replaceChildren();
+    for (let i = data.months.length - 1; i >= 0; i--) {
+      const o = new Option(monthLong(data.months[i]), String(i));
+      if (row[i] === null) o.disabled = true;
+      sel.append(o);
+    }
+  }
+
+  fromSel.addEventListener('change', () => { state.from = Number(fromSel.value); render(); });
+  toSel.addEventListener('change', () => { state.to = Number(toSel.value); render(); });
+  segs.forEach((b) => b.addEventListener('click', () => {
+    state.from = state.to - 12 * Number(b.dataset.years);
+    render();
+  }));
+
+  // ---------- chart ----------
+  const chartEl = $('chart');
+  const tip = $('tip');
+  let chartGeom = null;
+  let focusIdx = null;
+
+  function niceScale(min, max, count) {
+    if (min === max) { min -= 1; max += 1; }
+    const raw = (max - min) / count;
+    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const n = raw / mag;
+    const step = (n < 1.5 ? 1 : n < 3 ? 2 : n < 7 ? 5 : 10) * mag;
+    const lo = Math.floor(min / step) * step;
+    const hi = Math.ceil(max / step) * step;
+    const ticks = [];
+    for (let v = lo; v <= hi + step / 2; v += step) ticks.push(Number(v.toFixed(8)));
+    return { lo, hi, ticks, step };
+  }
+
+  function el(name, attrs) {
+    const node = document.createElementNS(SVGNS, name);
+    for (const k in attrs) node.setAttribute(k, attrs[k]);
+    return node;
+  }
+
+  function renderChart() {
+    const row = data.values.get(state.item);
+    const W = chartEl.clientWidth;
+    const H = chartEl.clientHeight;
+    if (!W || !H) return;
+    const vals = row.filter((v) => v !== null);
+    const sc = niceScale(Math.min(...vals), Math.max(...vals), H > 270 ? 5 : 4);
+    const digits = sc.step < 1 ? 1 : 0;
+    const tickText = (v) => v.toLocaleString('ko-KR', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+    const padL = Math.max(...sc.ticks.map((t) => tickText(t).length)) * 7 + 12;
+    const pad = { l: padL, r: 10, t: 12, b: 28 };
+    const pw = W - pad.l - pad.r;
+    const ph = H - pad.t - pad.b;
+    const n = data.months.length;
+    const x = (i) => pad.l + (n === 1 ? pw / 2 : (i / (n - 1)) * pw);
+    const y = (v) => pad.t + (1 - (v - sc.lo) / (sc.hi - sc.lo)) * ph;
+    const base = pad.t + ph;
+
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': `${state.item} 월별 지수 추이` });
+
+    // highlighted period
+    const a = Math.min(state.from, state.to), b = Math.max(state.from, state.to);
+    svg.append(el('rect', { x: x(a) - (b === a ? 1.5 : 0), y: pad.t, width: Math.max(x(b) - x(a), 3), height: ph, fill: 'var(--mark-wash)' }));
+
+    for (const t of sc.ticks) {
+      const yy = Math.round(y(t)) + 0.5;
+      svg.append(el('line', { x1: pad.l, x2: W - pad.r, y1: yy, y2: yy, stroke: 'var(--line)', 'stroke-width': 1 }));
+      const tx = el('text', { x: pad.l - 8, y: yy + 4, 'text-anchor': 'end', class: 'tick' });
+      tx.textContent = tickText(t);
+      svg.append(tx);
+    }
+
+    const years = data.months.map((m, i) => [m, i]).filter(([m]) => m.endsWith('01'));
+    const perYear = years.length > 1 ? x(years[1][1]) - x(years[0][1]) : pw;
+    const every = perYear >= 38 ? 1 : perYear >= 19 ? 2 : 4;
+    years.forEach(([m, i], k) => {
+      if (k % every) return;
+      const xx = Math.round(x(i)) + 0.5;
+      svg.append(el('line', { x1: xx, x2: xx, y1: base, y2: base + 4, stroke: 'var(--line-strong)', 'stroke-width': 1 }));
+      const tx = el('text', { x: xx, y: H - 8, 'text-anchor': 'middle', class: 'tick' });
+      tx.textContent = m.slice(0, 4);
+      svg.append(tx);
+    });
+    svg.append(el('line', { x1: pad.l, x2: W - pad.r, y1: base + 0.5, y2: base + 0.5, stroke: 'var(--line-strong)', 'stroke-width': 1 }));
+
+    // line + soft area, broken where data is missing
+    let line = '', area = '', seg = [];
+    const flush = () => {
+      if (!seg.length) return;
+      area += `M${seg[0][0]},${base}` + seg.map(([px, py]) => `L${px},${py}`).join('') + `L${seg[seg.length - 1][0]},${base}Z`;
+      seg = [];
+    };
+    row.forEach((v, i) => {
+      if (v === null) { flush(); return; }
+      const pt = [x(i).toFixed(1), y(v).toFixed(1)];
+      line += `${seg.length ? 'L' : 'M'}${pt[0]},${pt[1]}`;
+      seg.push(pt);
+    });
+    flush();
+    svg.insertBefore(el('path', { d: area, fill: 'var(--area)' }), svg.firstChild);
+    svg.append(el('path', { d: line, fill: 'none', stroke: 'var(--ink)', 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+
+    for (const i of new Set([state.from, state.to])) {
+      if (row[i] === null) continue;
+      svg.append(el('circle', { cx: x(i), cy: y(row[i]), r: 6, fill: 'var(--bg)' }));
+      svg.append(el('circle', { cx: x(i), cy: y(row[i]), r: 4, fill: 'var(--ink)' }));
+    }
+
+    const cross = el('line', { y1: pad.t, y2: base, stroke: 'var(--ink-3)', 'stroke-width': 1, visibility: 'hidden' });
+    const dotRing = el('circle', { r: 6, fill: 'var(--bg)', visibility: 'hidden' });
+    const dot = el('circle', { r: 4, fill: 'var(--ink)', visibility: 'hidden' });
+    svg.append(cross, dotRing, dot);
+
+    chartEl.querySelector('svg')?.remove();
+    chartEl.insertBefore(svg, tip);
+    chartGeom = { x, y, pad, pw, n, row, W, cross, dot, dotRing };
+    if (focusIdx !== null) showAt(focusIdx);
+  }
+
+  function showAt(i) {
+    const g = chartGeom;
+    if (!g) return;
+    i = Math.max(0, Math.min(g.n - 1, i));
+    let j = i;
+    if (g.row[j] === null) j = nearestValid(g.row, i, -1);
+    if (j < 0 || g.row[j] === null) return;
+    focusIdx = j;
+    const xx = g.x(j), yy = g.y(g.row[j]);
+    for (const node of [g.cross, g.dot, g.dotRing]) node.setAttribute('visibility', 'visible');
+    g.cross.setAttribute('x1', xx); g.cross.setAttribute('x2', xx);
+    for (const node of [g.dot, g.dotRing]) { node.setAttribute('cx', xx); node.setAttribute('cy', yy); }
+    $('tip-v').textContent = fmtIdx(g.row[j]);
+    $('tip-m').textContent = monthLong(data.months[j]);
+    tip.hidden = false;
+    const tw = tip.offsetWidth;
+    tip.style.left = `${Math.max(0, Math.min(g.W - tw, xx - tw / 2))}px`;
+    tip.style.top = `${Math.max(-8, yy - tip.offsetHeight - 14)}px`;
+  }
+
+  function hideTip() {
+    focusIdx = null;
+    tip.hidden = true;
+    if (!chartGeom) return;
+    for (const node of [chartGeom.cross, chartGeom.dot, chartGeom.dotRing]) node.setAttribute('visibility', 'hidden');
+  }
+
+  const idxFromEvent = (e) => {
+    const r = chartEl.getBoundingClientRect();
+    return Math.round(((e.clientX - r.left - chartGeom.pad.l) / chartGeom.pw) * (chartGeom.n - 1));
+  };
+  chartEl.addEventListener('pointermove', (e) => { if (chartGeom) showAt(idxFromEvent(e)); });
+  chartEl.addEventListener('pointerdown', (e) => { if (chartGeom) showAt(idxFromEvent(e)); });
+  chartEl.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') hideTip(); });
+  // 키보드로 들어왔을 때만 최신 월을 보여줘요 (손가락·마우스로 누르면 누른 자리를 유지)
+  chartEl.addEventListener('focus', () => { if (chartEl.matches(':focus-visible')) showAt(focusIdx ?? state.to); });
+  chartEl.addEventListener('blur', hideTip);
+  chartEl.addEventListener('keydown', (e) => {
+    if (!chartGeom) return;
+    const cur = focusIdx ?? state.to;
+    const step = { ArrowLeft: -1, ArrowRight: 1, PageUp: -12, PageDown: 12 }[e.key];
+    if (step) { e.preventDefault(); showAt(cur + step); }
+    else if (e.key === 'Home') { e.preventDefault(); showAt(firstValid(chartGeom.row)); }
+    else if (e.key === 'End') { e.preventDefault(); showAt(lastValid(chartGeom.row)); }
+  });
+  document.addEventListener('pointerdown', (e) => { if (!chartEl.contains(e.target)) hideTip(); });
+  if ('ResizeObserver' in window) new ResizeObserver(() => data && state.item && renderChart()).observe(chartEl);
+
+  // ---------- table ----------
+  function renderTable() {
+    const row = data.values.get(state.item);
+    const frag = document.createDocumentFragment();
+    for (let i = data.months.length - 1; i >= 0; i--) {
+      const v = row[i];
+      if (v === null) continue;
+      const tr = document.createElement('tr');
+      if (i === state.from || i === state.to) tr.className = 'sel';
+      const td1 = document.createElement('td'); td1.textContent = monthShort(data.months[i]);
+      const td2 = document.createElement('td'); td2.textContent = fmtIdx(v);
+      const td3 = document.createElement('td');
+      const prev = i > 0 ? row[i - 1] : null;
+      if (prev !== null) {
+        const ch = (v / prev - 1) * 100;
+        td3.textContent = `${signed(ch)}%`;
+        td3.className = dirClass(ch);
+      } else td3.textContent = '–';
+      tr.append(td1, td2, td3);
+      frag.append(tr);
+    }
+    $('tbody').replaceChildren(frag);
+  }
+
+  // ---------- result slip ----------
+  let copyText = '';
+
+  function setStat(dd, main, sub, cls = '') {
+    dd.className = cls;
+    dd.replaceChildren(document.createTextNode(main));
+    if (sub) { const s = document.createElement('small'); s.textContent = sub; dd.append(s); }
+  }
+
+  function render() {
+    const row = data.values.get(state.item);
+    $('pick-v').textContent = state.item;
+
+    fillSelect(fromSel, row);
+    fillSelect(toSel, row);
+    fromSel.value = String(state.from);
+    toSel.value = String(state.to);
+
+    segs.forEach((b) => {
+      const idx = state.to - 12 * Number(b.dataset.years);
+      b.disabled = idx < 0 || row[idx] === null;
+      b.setAttribute('aria-pressed', String(!b.disabled && idx === state.from));
+    });
+
+    const past = row[state.from];
+    const now = row[state.to];
+    const ratio = now / past;
+    const pct = (ratio - 1) * 100;
+    const mFrom = monthLong(data.months[state.from]);
+    const mTo = monthLong(data.months[state.to]);
+
+    $('s-item').textContent = state.item;
+    $('s-period').textContent = `${mFrom} → ${mTo}`;
+    const r2 = round2(pct);
+    const numText = `${signed(pct)}%`;
+    $('s-pct').className = 's-pct' + (dirClass(pct) ? ' ' + dirClass(pct) : '') + (numText.length > 7 ? ' long' : '');
+    $('s-dir').textContent = r2 > 0 ? '▲' : r2 < 0 ? '▼' : '';
+    $('s-num').textContent = numText;
+
+    const f = $('s-formula');
+    const strong = document.createElement('b');
+    strong.textContent = ratio.toFixed(4);
+    const tail = document.createElement('span');
+    tail.className = 'nowrap';
+    tail.append(document.createTextNode('= '), strong);
+    f.replaceChildren(document.createTextNode(`비교 지수 ${fmtIdx(now)} ÷ 기준 지수 ${fmtIdx(past)} `), tail);
+
+    // period stats
+    const span = Math.abs(state.to - state.from);
+    if (span >= 12) {
+      const cagr = (Math.pow(ratio, 12 / span) - 1) * 100;
+      setStat($('st-cagr'), `${signed(cagr)}%`, `${(span / 12).toFixed(span % 12 ? 1 : 0)}년 기준`, dirClass(cagr));
+    } else {
+      setStat($('st-cagr'), '1년 미만', '', 'na');
+    }
+    const lo = Math.min(state.from, state.to), hi = Math.max(state.from, state.to);
+    let maxI = -1, minI = -1;
+    for (let i = lo; i <= hi; i++) {
+      if (row[i] === null) continue;
+      if (maxI < 0 || row[i] > row[maxI]) maxI = i;
+      if (minI < 0 || row[i] < row[minI]) minI = i;
+    }
+    setStat($('st-max'), fmtIdx(row[maxI]), monthShort(data.months[maxI]));
+    setStat($('st-min'), fmtIdx(row[minI]), monthShort(data.months[minI]));
+
+    const pctPlain = `${r2 > 0 ? '+' : r2 < 0 ? '-' : ''}${Math.abs(pct).toFixed(2)}%`;
+    copyText = `${state.item} ${monthShort(data.months[state.from])}→${monthShort(data.months[state.to])}: ${past.toFixed(2)} → ${now.toFixed(2)}, ${pctPlain} (×${ratio.toFixed(4)})`;
+    $('live').textContent = `${state.item}, ${mFrom}부터 ${mTo}까지 ${r2 > 0 ? '상승' : r2 < 0 ? '하락' : '변동 없음'} ${Math.abs(pct).toFixed(2)}퍼센트`;
+
+    $('slip').hidden = false;
+    $('trend').hidden = false;
+    $('msg').hidden = true;
+    renderChart();
+    renderTable();
+    save();
+  }
+
+  $('copy').addEventListener('click', async () => {
+    const btn = $('copy');
+    try {
+      await navigator.clipboard.writeText(copyText);
+      btn.textContent = '복사했어요';
+    } catch (e) {
+      btn.textContent = '복사하지 못했어요';
+    }
+    setTimeout(() => { btn.textContent = '결과 복사'; }, 1800);
+  });
+
+  // ---------- load ----------
+  async function load() {
+    $('msg').hidden = false;
+    $('msg-text').textContent = '자료를 불러오는 중이에요.';
+    $('retry').hidden = true;
+    try {
+      const res = await fetch('data.csv', { cache: 'no-cache' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      data = parseCSV(await res.text());
+    } catch (e) {
+      $('msg-text').textContent = '자료를 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 불러오세요.';
+      $('retry').hidden = false;
+      $('pick-v').textContent = '자료 없음';
+      return;
+    }
+
+    const latest = data.months.length - 1;
+    $('asof').textContent = `${monthShort(data.months[latest])} 기준`;
+
+    yoy = new Map();
+    for (const [name, row] of data.values) {
+      const a = row[latest - 12], b = row[latest];
+      yoy.set(name, a != null && b != null ? (b / a - 1) * 100 : null);
+    }
+
+    const saved = store.get();
+    recent = Array.isArray(saved.recent) ? saved.recent.filter((n) => data.values.has(n)) : [];
+    const item = data.values.has(saved.item) ? saved.item
+      : data.values.has(PREFERRED_ITEM) ? PREFERRED_ITEM : data.items[0];
+    const row = data.values.get(item);
+    const savedTo = saved.to === 'latest' ? latest : data.months.indexOf(saved.to);
+    state.to = savedTo >= 0 ? savedTo : latest;
+    if (row[state.to] === null) state.to = lastValid(row);
+    const savedFrom = data.months.indexOf(saved.from);
+    state.from = savedFrom >= 0 ? savedFrom : Math.max(0, state.to - 12);
+    setItem(item);
+
+    for (const c of [pickBtn, fromSel, toSel]) c.disabled = false;
+    render();
+  }
+
+  $('retry').addEventListener('click', load);
+  load();
+
+  // ---------- install as an app ----------
+  let deferred = null;
+  const installBtn = $('install');
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferred = e;
+    installBtn.hidden = false;
+  });
+  installBtn.addEventListener('click', async () => {
+    if (!deferred) return;
+    deferred.prompt();
+    await deferred.userChoice.catch(() => null);
+    deferred = null;
+    installBtn.hidden = true;
+  });
+  window.addEventListener('appinstalled', () => { installBtn.hidden = true; });
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  if (/iphone|ipad|ipod/i.test(navigator.userAgent) && !standalone) $('ios-hint').hidden = false;
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  }
+})();
+</script>
+</body>
+</html>

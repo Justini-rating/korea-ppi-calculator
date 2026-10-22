@@ -8,7 +8,7 @@ on:
 
 jobs:
   update:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     # [경고 해결] 여기에 환경 변수를 넣어야 Runner가 가장 먼저 인식합니다.
